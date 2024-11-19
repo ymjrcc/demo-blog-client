@@ -1,47 +1,96 @@
 'use client'
+import { BlogService, type Blog } from '@/services/blog'
+import BlogList from '@/components/BlogList';
+import BlogForm from '@/components/BlogForm';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { Button, useDisclosure } from '@nextui-org/react';
 
-import { LayoutTemplate } from 'lucide-react';
-import { Button, Divider, Code } from '@nextui-org/react';
-import { Bitcoin, BadgeDollarSign, Gem } from 'lucide-react';
-import toast from 'react-hot-toast';
-import { useEffect } from 'react';
+export default function Page() {
 
-function Page() {
+  const queryClient = useQueryClient();
 
+  const [selectedBlog, setSelectedBlog] = useState<Blog | null>(null);
+
+  const {isOpen, onOpen, onOpenChange, onClose} = useDisclosure();
+
+  const { data: blogs, isLoading } = useQuery({
+    queryKey: ['blogs'],
+    queryFn: BlogService.getAll
+  });
+
+  const createMutation = useMutation({
+    mutationFn: BlogService.create,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['blogs'] });
+    }
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: any }) => 
+      BlogService.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['blogs'] });
+      setSelectedBlog(null);
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: BlogService.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['blogs'] });
+    }
+  });
+
+  const onEdit = (blog: Blog) => {
+    setSelectedBlog(blog);
+    onOpen();
+  }
+
+  const onCreate = () => {
+    setSelectedBlog(null);
+    onOpen();
+  }
+
+  const onSubmit = (data: any) => {
+    if (selectedBlog) {
+      updateMutation.mutate({ id: selectedBlog.id, data });
+    } else {
+      createMutation.mutate(data);
+    }
+    onClose();
+  }
+
+  if (isLoading) return <div>Loading...</div>;
+  
   return (
-    <>
-      <div className="bg-gradient-to-r from-gray-700 via-gray-600 to-gray-500 h-16 px-4 flex justify-between items-center shadow-md">
-        <div className="text-xl font-bold text-gray-200 flex items-center">
-          <LayoutTemplate className='pr-4' size={40}/>
-          Frontend Template
-        </div>
+    <div className='container p-4'>
+      <div className="flex justify-between items-center mb-6 pb-2 border-b-2 border-gray-200">
+        <h1 className="text-2xl font-bold">博客管理系统</h1>
+        <Button 
+          color="primary"
+          onClick={onCreate}
+        >
+          新建博客
+        </Button>
       </div>
-      <div className='p-4'>
-        <div className="text-xl font-bold mb-4 text-gray-500">
-          Dependencies
-        </div>
-        <ul className='ml-4'>
-          <li className="mb-2">Base on <Code>React</Code> and <Code>Next.js</Code></li>
-          <li className="mb-2">Use <Code>Tailwindcss</Code> for styling</li>
-          <li className="mb-2">Use <Code>NextUI</Code> for UI Components</li>
-          <li className="mb-2">Use <Code>Lucide</Code> for Icons</li>
-          <li className="mb-2">Use <Code>react-hot-toast</Code> for Toast</li>
-        </ul>
-        <Divider className='my-4'/>
-        <div className="text-xl font-bold underline text-blue-400 mb-4">
-          Hello Tailwindcss!
-        </div>
-        <div className="flex ">
-          <Button color="success" variant='flat' onClick={() => toast.success('Toast from react-hot-toast!')}>Click to show a toast</Button>
-        </div>
-        <div className='mt-4 flex text-orange-400'>
-          <Bitcoin size={40} className='mr-4'/>
-          <BadgeDollarSign size={40} className='mr-4'/>
-          <Gem size={40} className='mr-4'/>
-        </div>
-      </div>
-    </>
+      
+      <div className='text-lg font-bold mb-2'>博客列表：</div>
+      <BlogList
+        blogs={blogs || []}
+        onEdit={onEdit}
+        onDelete={(id: number) => {
+          if (confirm('Are you sure you want to delete this blog?')) {
+            deleteMutation.mutate(id);
+          }
+        }}
+      />
+      <BlogForm 
+        data={selectedBlog} 
+        isOpen={isOpen} 
+        onOpenChange={onOpenChange} 
+        onSubmit={onSubmit}
+      />
+    </div>
   );
 }
-
-export default Page;
